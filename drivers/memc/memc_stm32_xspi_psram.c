@@ -127,8 +127,9 @@ static int ap_memory_read_reg(XSPI_HandleTypeDef *hxspi, uint32_t address, uint8
 	}
 
 	/* Reception of the data */
-	if (HAL_XSPI_Receive(hxspi, value, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
-		LOG_ERR("XSPI receive failed");
+	int status = HAL_XSPI_Receive(hxspi, value, HAL_XSPI_TIMEOUT_DEFAULT_VALUE);
+	if (status != HAL_OK) {
+		LOG_ERR("XSPI receive failed: %d", status);
 		return -EIO;
 	}
 
@@ -164,6 +165,8 @@ static int ap_memory_configure(XSPI_HandleTypeDef *hxspi)
 		return -EIO;
 	}
 
+	LOG_INF("test 2");
+
 	/* Check MR0 configuration */
 	if (ap_memory_read_reg(hxspi, MR0, regR_MR0, read_latency_cycles) != 0) {
 		return -EIO;
@@ -177,6 +180,8 @@ static int ap_memory_configure(XSPI_HandleTypeDef *hxspi)
 		return -EIO;
 	}
 
+LOG_INF("test 3");
+
 	/* Check MR4 configuration */
 	if (ap_memory_read_reg(hxspi, MR4, regR_MR4, read_latency_cycles) != 0) {
 		return -EIO;
@@ -189,6 +194,8 @@ static int ap_memory_configure(XSPI_HandleTypeDef *hxspi)
 	if (ap_memory_write_reg(hxspi, MR8, regW_MR8) != 0) {
 		return -EIO;
 	}
+
+LOG_INF("test 4");
 
 	/* Check MR8 configuration */
 	if (ap_memory_read_reg(hxspi, MR8, regR_MR8, read_latency_cycles) != 0) {
@@ -212,6 +219,8 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	XSPI_MemoryMappedTypeDef mem_mapped_cfg = {0};
 	uint32_t prescaler = STM32_XSPI_CLOCK_PRESCALER_MIN;
 	int ret;
+
+	return 0;	// todo: just for testing of app
 
 	/* Signals configuration */
 	ret = pinctrl_apply_state(dev_cfg->pcfg, PINCTRL_STATE_DEFAULT);
@@ -280,6 +289,30 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	hxspi.Init.ClockPrescaler = prescaler;
 	hxspi.Init.MemorySize = find_msb_set(dev_cfg->memory_size) - 2;
 
+	// todo: test same configuration as in STM32Cube
+	hxspi.Init.FifoThresholdByte = 1;
+	hxspi.Init.MemoryType = HAL_XSPI_MEMTYPE_HYPERBUS;
+	hxspi.Init.ChipSelectHighTimeCycle = 2;
+	hxspi.Init.Refresh = 241;
+
+	// print all hxspi values
+	LOG_INF("hxspi.Instance: %p\n", (void*)hxspi.Instance);
+	LOG_INF("hxspi.Init.FifoThresholdByte: %d\n", hxspi.Init.FifoThresholdByte);
+	LOG_INF("hxspi.Init.MemoryMode: 0x%08x\n", hxspi.Init.MemoryMode);
+	LOG_INF("hxspi.Init.MemoryType: 0x%08x\n", hxspi.Init.MemoryType);
+	LOG_INF("hxspi.Init.MemorySize: 0x%08x\n", hxspi.Init.MemorySize);
+	LOG_INF("hxspi.Init.ChipSelectHighTimeCycle: 0x%08x\n", hxspi.Init.ChipSelectHighTimeCycle);
+	LOG_INF("hxspi.Init.FreeRunningClock: 0x%08x\n", hxspi.Init.FreeRunningClock);
+	LOG_INF("hxspi.Init.ClockMode: 0x%08x\n", hxspi.Init.ClockMode);
+	LOG_INF("hxspi.Init.WrapSize: 0x%08x\n", hxspi.Init.WrapSize);
+	LOG_INF("hxspi.Init.ClockPrescaler: 0x%08x\n", hxspi.Init.ClockPrescaler);
+	LOG_INF("hxspi.Init.SampleShifting: 0x%08x\n", hxspi.Init.SampleShifting);
+	LOG_INF("hxspi.Init.DelayHoldQuarterCycle: 0x%08x\n", hxspi.Init.DelayHoldQuarterCycle);
+	LOG_INF("hxspi.Init.ChipSelectBoundary: 0x%08x\n", hxspi.Init.ChipSelectBoundary);
+	LOG_INF("hxspi.Init.MaxTran: 0x%08x\n", hxspi.Init.MaxTran);
+	LOG_INF("hxspi.Init.Refresh: 0x%08x\n", hxspi.Init.Refresh);
+	LOG_INF("hxspi.Init.MemorySelect: 0x%08x\n", hxspi.Init.MemorySelect);
+
 	if (HAL_XSPI_Init(&hxspi) != HAL_OK) {
 		LOG_ERR("XSPI Init failed");
 		return -EIO;
@@ -293,42 +326,69 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 		return -EIO;
 	}
 
-	/* Configure AP memory registers */
-	ret = ap_memory_configure(&hxspi);
-	if (ret != 0) {
-		LOG_ERR("AP memory configuration failed");
+	XSPI_HyperbusCfgTypeDef sHyperBusCfg = {0};
+	sHyperBusCfg.RWRecoveryTimeCycle = 7;
+	sHyperBusCfg.AccessTimeCycle = 7;
+	sHyperBusCfg.WriteZeroLatency = HAL_XSPI_LATENCY_ON_WRITE;
+	sHyperBusCfg.LatencyMode = HAL_XSPI_FIXED_LATENCY;
+	if (HAL_XSPI_HyperbusCfg(&hxspi, &sHyperBusCfg, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+	{
+		LOG_ERR("Hyperbus Cfg failed");
 		return -EIO;
 	}
 
-	/* The following fields are already set to 0 thanks to cmd = {0}.
-	 * They are kept in comment for better understanding of the command.
-	 * cmd.InstructionWidth = HAL_XSPI_INSTRUCTION_8_BITS;
-	 * cmd.InstructionDTRMode = HAL_XSPI_INSTRUCTION_DTR_DISABLE;
-	 * cmd.Address = 0x0U;
-	 * cmd.AlternateBytesMode = HAL_XSPI_ALT_BYTES_NONE;
-	 */
-	cmd.OperationType = HAL_XSPI_OPTYPE_WRITE_CFG;
-	cmd.InstructionMode = HAL_XSPI_INSTRUCTION_8_LINES;
-	cmd.Instruction = BURST_WRITE_CMD;
-	cmd.AddressMode = HAL_XSPI_ADDRESS_8_LINES;
-	cmd.AddressWidth = HAL_XSPI_ADDRESS_32_BITS;
-	cmd.AddressDTRMode = HAL_XSPI_ADDRESS_DTR_ENABLE;
-	cmd.DataMode = HAL_XSPI_DATA_16_LINES;
-	cmd.DataDTRMode = HAL_XSPI_DATA_DTR_ENABLE;
-	cmd.DummyCycles = DUMMY_CLK_CYCLES_WRITE;
-	cmd.DQSMode = HAL_XSPI_DQS_ENABLE;
+	// /* Configure AP memory registers */
+	// ret = ap_memory_configure(&hxspi);
+	// if (ret != 0) {
+	// 	LOG_ERR("AP memory configuration failed");
+	// 	return -EIO;
+	// }
 
-	if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	XSPI_HyperbusCmdTypeDef sCommand = {0};
+  /* Memory-mapped mode configuration --------------------------------------- */
+    sCommand.AddressSpace = HAL_XSPI_MEMORY_ADDRESS_SPACE;
+    sCommand.DQSMode      = HAL_XSPI_DQS_ENABLE;
+    sCommand.Address      = 0;
+	// todo: set parameters which are 0 for clarification
+
+    LOG_INF("XSPI_Hyperbus device configuration\n");
+    int retval = HAL_XSPI_HyperbusCmd(&hxspi, &sCommand, HAL_XSPI_TIMEOUT_DEFAULT_VALUE);
+    if ( retval != HAL_OK)
+    {
+      LOG_ERR("(main) XSPI_Hyperbus device configuration failed! :: %d \n", retval);
 		return -EIO;
 	}
 
-	cmd.OperationType = HAL_XSPI_OPTYPE_READ_CFG;
-	cmd.Instruction = BURST_READ_CMD;
-	cmd.DummyCycles = DUMMY_CLK_CYCLES_READ;
 
-	if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
-		return -EIO;
-	}
+	// /* The following fields are already set to 0 thanks to cmd = {0}.
+	//  * They are kept in comment for better understanding of the command.
+	//  * cmd.InstructionWidth = HAL_XSPI_INSTRUCTION_8_BITS;
+	//  * cmd.InstructionDTRMode = HAL_XSPI_INSTRUCTION_DTR_DISABLE;
+	//  * cmd.Address = 0x0U;
+	//  * cmd.AlternateBytesMode = HAL_XSPI_ALT_BYTES_NONE;
+	//  */
+	// cmd.OperationType = HAL_XSPI_OPTYPE_WRITE_CFG;
+	// cmd.InstructionMode = HAL_XSPI_INSTRUCTION_8_LINES;
+	// cmd.Instruction = BURST_WRITE_CMD;
+	// cmd.AddressMode = HAL_XSPI_ADDRESS_8_LINES;
+	// cmd.AddressWidth = HAL_XSPI_ADDRESS_32_BITS;
+	// cmd.AddressDTRMode = HAL_XSPI_ADDRESS_DTR_ENABLE;
+	// cmd.DataMode = HAL_XSPI_DATA_16_LINES;
+	// cmd.DataDTRMode = HAL_XSPI_DATA_DTR_ENABLE;
+	// cmd.DummyCycles = DUMMY_CLK_CYCLES_WRITE;
+	// cmd.DQSMode = HAL_XSPI_DQS_ENABLE;
+
+	// if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	// 	return -EIO;
+	// }
+
+	// cmd.OperationType = HAL_XSPI_OPTYPE_READ_CFG;
+	// cmd.Instruction = BURST_READ_CMD;
+	// cmd.DummyCycles = DUMMY_CLK_CYCLES_READ;
+
+	// if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	// 	return -EIO;
+	// }
 
 	mem_mapped_cfg.TimeOutActivation = HAL_XSPI_TIMEOUT_COUNTER_DISABLE;
 
@@ -372,12 +432,12 @@ static struct memc_stm32_xspi_psram_data memc_stm32_xspi_data = {
 	.hxspi = {
 		.Instance = (XSPI_TypeDef *)DT_REG_ADDR(STM32_XSPI_NODE),
 		.Init = {
-			.FifoThresholdByte = 8U,
+			.FifoThresholdByte = 8U,	// todo: change to 1 ?
 			.MemoryMode = HAL_XSPI_SINGLE_MEM,
 			.MemoryType = (DT_INST_PROP(0, io_x16_mode) ?
 					HAL_XSPI_MEMTYPE_APMEM_16BITS :
-					HAL_XSPI_MEMTYPE_APMEM),
-			.ChipSelectHighTimeCycle = 1U,
+					HAL_XSPI_MEMTYPE_APMEM),	// todo: change to hyperbus
+			.ChipSelectHighTimeCycle = 1U, // todo: change to 2?
 			.FreeRunningClock = HAL_XSPI_FREERUNCLK_DISABLE,
 			.ClockMode = HAL_XSPI_CLOCK_MODE_0,
 			.WrapSize = HAL_XSPI_WRAP_NOT_SUPPORTED,
@@ -385,7 +445,7 @@ static struct memc_stm32_xspi_psram_data memc_stm32_xspi_data = {
 			.DelayHoldQuarterCycle = HAL_XSPI_DHQC_ENABLE,
 			.ChipSelectBoundary = HAL_XSPI_BONDARYOF_16KB,
 			.MaxTran = 0U,
-			.Refresh = 0x81U,
+			.Refresh = 0x81U,// todo: change to 241 ?
 			.MemorySelect = HAL_XSPI_CSSEL_NCS1,
 		},
 	},
@@ -393,5 +453,5 @@ static struct memc_stm32_xspi_psram_data memc_stm32_xspi_data = {
 
 DEVICE_DT_INST_DEFINE(0, &memc_stm32_xspi_psram_init, NULL,
 		      &memc_stm32_xspi_data, &memc_stm32_xspi_cfg,
-		      POST_KERNEL, CONFIG_MEMC_INIT_PRIORITY,
+		      POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		      NULL);

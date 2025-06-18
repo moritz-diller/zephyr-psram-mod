@@ -953,6 +953,8 @@ static int stm32h7_flash_init(const struct device *dev)
 	}
 #endif
 
+	LOG_DBG("blah");
+
 	return 0;
 }
 

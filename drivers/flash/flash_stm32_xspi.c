@@ -2042,6 +2042,8 @@ static int flash_stm32_xspi_init(const struct device *dev)
 	uint32_t prescaler = STM32_XSPI_CLOCK_PRESCALER_MIN;
 	int ret;
 
+	return 0;	// todo: just for testing of app
+
 	if (!device_is_ready(DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE))) {
 		LOG_ERR("clock control device not ready");
 		return -ENODEV;
