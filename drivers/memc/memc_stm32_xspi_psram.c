@@ -295,23 +295,23 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	hxspi.Init.ChipSelectHighTimeCycle = 2;
 	hxspi.Init.Refresh = 241;
 
-	// print all hxspi values
-	LOG_INF("hxspi.Instance: %p\n", (void*)hxspi.Instance);
-	LOG_INF("hxspi.Init.FifoThresholdByte: %d\n", hxspi.Init.FifoThresholdByte);
-	LOG_INF("hxspi.Init.MemoryMode: 0x%08x\n", hxspi.Init.MemoryMode);
-	LOG_INF("hxspi.Init.MemoryType: 0x%08x\n", hxspi.Init.MemoryType);
-	LOG_INF("hxspi.Init.MemorySize: 0x%08x\n", hxspi.Init.MemorySize);
-	LOG_INF("hxspi.Init.ChipSelectHighTimeCycle: 0x%08x\n", hxspi.Init.ChipSelectHighTimeCycle);
-	LOG_INF("hxspi.Init.FreeRunningClock: 0x%08x\n", hxspi.Init.FreeRunningClock);
-	LOG_INF("hxspi.Init.ClockMode: 0x%08x\n", hxspi.Init.ClockMode);
-	LOG_INF("hxspi.Init.WrapSize: 0x%08x\n", hxspi.Init.WrapSize);
-	LOG_INF("hxspi.Init.ClockPrescaler: 0x%08x\n", hxspi.Init.ClockPrescaler);
-	LOG_INF("hxspi.Init.SampleShifting: 0x%08x\n", hxspi.Init.SampleShifting);
-	LOG_INF("hxspi.Init.DelayHoldQuarterCycle: 0x%08x\n", hxspi.Init.DelayHoldQuarterCycle);
-	LOG_INF("hxspi.Init.ChipSelectBoundary: 0x%08x\n", hxspi.Init.ChipSelectBoundary);
-	LOG_INF("hxspi.Init.MaxTran: 0x%08x\n", hxspi.Init.MaxTran);
-	LOG_INF("hxspi.Init.Refresh: 0x%08x\n", hxspi.Init.Refresh);
-	LOG_INF("hxspi.Init.MemorySelect: 0x%08x\n", hxspi.Init.MemorySelect);
+	// // print all hxspi values
+	// LOG_INF("hxspi.Instance: %p\n", (void*)hxspi.Instance);
+	// LOG_INF("hxspi.Init.FifoThresholdByte: %d\n", hxspi.Init.FifoThresholdByte);
+	// LOG_INF("hxspi.Init.MemoryMode: 0x%08x\n", hxspi.Init.MemoryMode);
+	// LOG_INF("hxspi.Init.MemoryType: 0x%08x\n", hxspi.Init.MemoryType);
+	// LOG_INF("hxspi.Init.MemorySize: 0x%08x\n", hxspi.Init.MemorySize);
+	// LOG_INF("hxspi.Init.ChipSelectHighTimeCycle: 0x%08x\n", hxspi.Init.ChipSelectHighTimeCycle);
+	// LOG_INF("hxspi.Init.FreeRunningClock: 0x%08x\n", hxspi.Init.FreeRunningClock);
+	// LOG_INF("hxspi.Init.ClockMode: 0x%08x\n", hxspi.Init.ClockMode);
+	// LOG_INF("hxspi.Init.WrapSize: 0x%08x\n", hxspi.Init.WrapSize);
+	// LOG_INF("hxspi.Init.ClockPrescaler: 0x%08x\n", hxspi.Init.ClockPrescaler);
+	// LOG_INF("hxspi.Init.SampleShifting: 0x%08x\n", hxspi.Init.SampleShifting);
+	// LOG_INF("hxspi.Init.DelayHoldQuarterCycle: 0x%08x\n", hxspi.Init.DelayHoldQuarterCycle);
+	// LOG_INF("hxspi.Init.ChipSelectBoundary: 0x%08x\n", hxspi.Init.ChipSelectBoundary);
+	// LOG_INF("hxspi.Init.MaxTran: 0x%08x\n", hxspi.Init.MaxTran);
+	// LOG_INF("hxspi.Init.Refresh: 0x%08x\n", hxspi.Init.Refresh);
+	// LOG_INF("hxspi.Init.MemorySelect: 0x%08x\n", hxspi.Init.MemorySelect);
 
 	if (HAL_XSPI_Init(&hxspi) != HAL_OK) {
 		LOG_ERR("XSPI Init failed");
