@@ -213,7 +213,12 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	uint32_t prescaler = STM32_XSPI_CLOCK_PRESCALER_MIN;
 	int ret;
 
-	return 0;	// todo: just for testing of app
+	if(hxspi.Instance->CR & XSPI_CR_EN){
+		// PSRAM already enabled, e.g. by bootloader
+		// -> skip initialization
+		LOG_ERR("skip PSRAM init"); // todo: remove; todo: test in bootloader
+		return 0;
+	}
 
 	/* Signals configuration */
 	ret = pinctrl_apply_state(dev_cfg->pcfg, PINCTRL_STATE_DEFAULT);
