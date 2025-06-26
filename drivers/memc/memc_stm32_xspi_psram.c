@@ -213,6 +213,13 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	uint32_t prescaler = STM32_XSPI_CLOCK_PRESCALER_MIN;
 	int ret;
 
+	if(hxspi.Instance->CR & XSPI_CR_EN){
+		// PSRAM already enabled, e.g. by bootloader
+		// -> skip initialization
+		LOG_ERR("skip PSRAM init"); // todo: remove; todo: test in bootloader
+		return 0;
+	}
+
 	/* Signals configuration */
 	ret = pinctrl_apply_state(dev_cfg->pcfg, PINCTRL_STATE_DEFAULT);
 	if (ret < 0) {
@@ -280,6 +287,12 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 	hxspi.Init.ClockPrescaler = prescaler;
 	hxspi.Init.MemorySize = find_msb_set(dev_cfg->memory_size) - 2;
 
+	// todo: test same configuration as in STM32Cube
+	hxspi.Init.FifoThresholdByte = 1;
+	hxspi.Init.MemoryType = HAL_XSPI_MEMTYPE_HYPERBUS;
+	hxspi.Init.ChipSelectHighTimeCycle = 2;
+	hxspi.Init.Refresh = 241;
+
 	if (HAL_XSPI_Init(&hxspi) != HAL_OK) {
 		LOG_ERR("XSPI Init failed");
 		return -EIO;
@@ -293,42 +306,69 @@ static int memc_stm32_xspi_psram_init(const struct device *dev)
 		return -EIO;
 	}
 
-	/* Configure AP memory registers */
-	ret = ap_memory_configure(&hxspi);
-	if (ret != 0) {
-		LOG_ERR("AP memory configuration failed");
+	XSPI_HyperbusCfgTypeDef sHyperBusCfg = {0};
+	sHyperBusCfg.RWRecoveryTimeCycle = 7;
+	sHyperBusCfg.AccessTimeCycle = 7;
+	sHyperBusCfg.WriteZeroLatency = HAL_XSPI_LATENCY_ON_WRITE;
+	sHyperBusCfg.LatencyMode = HAL_XSPI_FIXED_LATENCY;
+	if (HAL_XSPI_HyperbusCfg(&hxspi, &sHyperBusCfg, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+	{
+		LOG_ERR("Hyperbus Cfg failed");
 		return -EIO;
 	}
 
-	/* The following fields are already set to 0 thanks to cmd = {0}.
-	 * They are kept in comment for better understanding of the command.
-	 * cmd.InstructionWidth = HAL_XSPI_INSTRUCTION_8_BITS;
-	 * cmd.InstructionDTRMode = HAL_XSPI_INSTRUCTION_DTR_DISABLE;
-	 * cmd.Address = 0x0U;
-	 * cmd.AlternateBytesMode = HAL_XSPI_ALT_BYTES_NONE;
-	 */
-	cmd.OperationType = HAL_XSPI_OPTYPE_WRITE_CFG;
-	cmd.InstructionMode = HAL_XSPI_INSTRUCTION_8_LINES;
-	cmd.Instruction = BURST_WRITE_CMD;
-	cmd.AddressMode = HAL_XSPI_ADDRESS_8_LINES;
-	cmd.AddressWidth = HAL_XSPI_ADDRESS_32_BITS;
-	cmd.AddressDTRMode = HAL_XSPI_ADDRESS_DTR_ENABLE;
-	cmd.DataMode = HAL_XSPI_DATA_16_LINES;
-	cmd.DataDTRMode = HAL_XSPI_DATA_DTR_ENABLE;
-	cmd.DummyCycles = DUMMY_CLK_CYCLES_WRITE;
-	cmd.DQSMode = HAL_XSPI_DQS_ENABLE;
+	// /* Configure AP memory registers */
+	// ret = ap_memory_configure(&hxspi);
+	// if (ret != 0) {
+	// 	LOG_ERR("AP memory configuration failed");
+	// 	return -EIO;
+	// }
 
-	if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	XSPI_HyperbusCmdTypeDef sCommand = {0};
+  /* Memory-mapped mode configuration --------------------------------------- */
+    sCommand.AddressSpace = HAL_XSPI_MEMORY_ADDRESS_SPACE;
+    sCommand.DQSMode      = HAL_XSPI_DQS_ENABLE;
+    sCommand.Address      = 0;
+	// todo: set parameters which are 0 for clarification
+
+    LOG_INF("XSPI_Hyperbus device configuration\n");
+    int retval = HAL_XSPI_HyperbusCmd(&hxspi, &sCommand, HAL_XSPI_TIMEOUT_DEFAULT_VALUE);
+    if ( retval != HAL_OK)
+    {
+      LOG_ERR("(main) XSPI_Hyperbus device configuration failed! :: %d \n", retval);
 		return -EIO;
 	}
 
-	cmd.OperationType = HAL_XSPI_OPTYPE_READ_CFG;
-	cmd.Instruction = BURST_READ_CMD;
-	cmd.DummyCycles = DUMMY_CLK_CYCLES_READ;
 
-	if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
-		return -EIO;
-	}
+	// /* The following fields are already set to 0 thanks to cmd = {0}.
+	//  * They are kept in comment for better understanding of the command.
+	//  * cmd.InstructionWidth = HAL_XSPI_INSTRUCTION_8_BITS;
+	//  * cmd.InstructionDTRMode = HAL_XSPI_INSTRUCTION_DTR_DISABLE;
+	//  * cmd.Address = 0x0U;
+	//  * cmd.AlternateBytesMode = HAL_XSPI_ALT_BYTES_NONE;
+	//  */
+	// cmd.OperationType = HAL_XSPI_OPTYPE_WRITE_CFG;
+	// cmd.InstructionMode = HAL_XSPI_INSTRUCTION_8_LINES;
+	// cmd.Instruction = BURST_WRITE_CMD;
+	// cmd.AddressMode = HAL_XSPI_ADDRESS_8_LINES;
+	// cmd.AddressWidth = HAL_XSPI_ADDRESS_32_BITS;
+	// cmd.AddressDTRMode = HAL_XSPI_ADDRESS_DTR_ENABLE;
+	// cmd.DataMode = HAL_XSPI_DATA_16_LINES;
+	// cmd.DataDTRMode = HAL_XSPI_DATA_DTR_ENABLE;
+	// cmd.DummyCycles = DUMMY_CLK_CYCLES_WRITE;
+	// cmd.DQSMode = HAL_XSPI_DQS_ENABLE;
+
+	// if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	// 	return -EIO;
+	// }
+
+	// cmd.OperationType = HAL_XSPI_OPTYPE_READ_CFG;
+	// cmd.Instruction = BURST_READ_CMD;
+	// cmd.DummyCycles = DUMMY_CLK_CYCLES_READ;
+
+	// if (HAL_XSPI_Command(&hxspi, &cmd, HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	// 	return -EIO;
+	// }
 
 	mem_mapped_cfg.TimeOutActivation = HAL_XSPI_TIMEOUT_COUNTER_DISABLE;
 
@@ -372,12 +412,12 @@ static struct memc_stm32_xspi_psram_data memc_stm32_xspi_data = {
 	.hxspi = {
 		.Instance = (XSPI_TypeDef *)DT_REG_ADDR(STM32_XSPI_NODE),
 		.Init = {
-			.FifoThresholdByte = 8U,
+			.FifoThresholdByte = 8U,	// todo: change to 1 ?
 			.MemoryMode = HAL_XSPI_SINGLE_MEM,
 			.MemoryType = (DT_INST_PROP(0, io_x16_mode) ?
 					HAL_XSPI_MEMTYPE_APMEM_16BITS :
-					HAL_XSPI_MEMTYPE_APMEM),
-			.ChipSelectHighTimeCycle = 1U,
+					HAL_XSPI_MEMTYPE_APMEM),	// todo: change to hyperbus
+			.ChipSelectHighTimeCycle = 1U, // todo: change to 2?
 			.FreeRunningClock = HAL_XSPI_FREERUNCLK_DISABLE,
 			.ClockMode = HAL_XSPI_CLOCK_MODE_0,
 			.WrapSize = HAL_XSPI_WRAP_NOT_SUPPORTED,
@@ -385,7 +425,7 @@ static struct memc_stm32_xspi_psram_data memc_stm32_xspi_data = {
 			.DelayHoldQuarterCycle = HAL_XSPI_DHQC_ENABLE,
 			.ChipSelectBoundary = HAL_XSPI_BONDARYOF_16KB,
 			.MaxTran = 0U,
-			.Refresh = 0x81U,
+			.Refresh = 0x81U,// todo: change to 241 ?
 			.MemorySelect = HAL_XSPI_CSSEL_NCS1,
 		},
 	},
@@ -393,5 +433,5 @@ static struct memc_stm32_xspi_psram_data memc_stm32_xspi_data = {
 
 DEVICE_DT_INST_DEFINE(0, &memc_stm32_xspi_psram_init, NULL,
 		      &memc_stm32_xspi_data, &memc_stm32_xspi_cfg,
-		      POST_KERNEL, CONFIG_MEMC_INIT_PRIORITY,
+		      POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,
 		      NULL);

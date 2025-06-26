@@ -2169,11 +2169,12 @@ static int flash_stm32_xspi_init(const struct device *dev)
 	xspi_mgr_cfg.nCSOverride = HAL_XSPI_CSSEL_OVR_DISABLED;
 	xspi_mgr_cfg.Req2AckTime = 1;
 
-	if (HAL_XSPIM_Config(&dev_data->hxspi, &xspi_mgr_cfg,
-		HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
-		LOG_ERR("XSPI M config failed");
-		return -EIO;
-	}
+	// todo: the following 4 lines must be removed for app but kept for bootloader; HAL_XSPIM_Config() hangs if the XSPI periphery was already initialized by the bootloader
+	// if (HAL_XSPIM_Config(&dev_data->hxspi, &xspi_mgr_cfg,
+	// 	HAL_XSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+	// 	LOG_ERR("XSPI M config failed");
+	// 	return -EIO;
+	// }
 
 #endif /* XSPIM */
 
@@ -2215,6 +2216,7 @@ static int flash_stm32_xspi_init(const struct device *dev)
 	__HAL_LINKDMA(&dev_data->hxspi, hdmarx, hdma_rx);
 
 #endif /* CONFIG_USE_STM32_HAL_DMA */
+
 	/* Initialize semaphores */
 	k_sem_init(&dev_data->sem, 1, 1);
 	k_sem_init(&dev_data->sync, 0, 1);
